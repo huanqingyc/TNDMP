@@ -5,7 +5,7 @@ from scipy.stats import norm
 def set_font(font='Times New Roman'):
     plt.rcParams['font.family'] = font
 
-def plot_f_temporal(path,methods,t_max, TNPA_labels = [], figsize = (8,5)):
+def plot_f_temporal(path,methods,t_max, ARM_labels = [], figsize = (8,5)):
     plt.figure(1,figsize = figsize)
 
     if 'MC' in methods:
@@ -18,10 +18,10 @@ def plot_f_temporal(path,methods,t_max, TNPA_labels = [], figsize = (8,5)):
         DMP = 1.-np.mean(np.load(path + 'DMP.npy')[:,:,0], axis=1)
         plt.plot(range(t_max+1),  DMP[:t_max+1], label = 'DMP',linestyle='--',dashes = (8,8))
 
-    if 'TNPA' in methods:
+    if 'ARM' in methods:
         colors = plt.cm.tab10.colors
-        for label in TNPA_labels:
-            data = 1.-np.mean(np.load(path + 'TNPA_' + label + '.npy')[:,:,0], axis=1)
+        for label in ARM_labels:
+            data = 1.-np.mean(np.load(path + 'ARM_' + label + '.npy')[:,:,0], axis=1)
             plt.plot(range(t_max+1), data[:t_max+1],color = colors[int(label[-1])-1], label = label)
         
     plt.ylabel('f',style='italic')
@@ -37,7 +37,7 @@ def plot_f_temporal(path,methods,t_max, TNPA_labels = [], figsize = (8,5)):
     plt.yticks(np.arange(0,y_max,0.1))
     plt.xlim(0,t_max)
 
-def plot_error_temporal(path,methods,t_max, TNPA_labels = [],figsize = (8,5)):
+def plot_error_temporal(path,methods,t_max, ARM_labels = [],figsize = (8,5)):
     plt.figure(1,figsize = figsize)
     MC = np.load(path + 'MC.npy')[:,:,0]
     if 'PA' in methods:
@@ -48,10 +48,10 @@ def plot_error_temporal(path,methods,t_max, TNPA_labels = [],figsize = (8,5)):
         plt.plot(range(t_max+1),  DMP[:t_max+1] , label = 'DMP',linestyle='--',dashes = (8,8))
     
     y_min = 1
-    if 'TNPA' in methods:
+    if 'ARM' in methods:
         colors = plt.cm.tab10.colors
-        for label in TNPA_labels:
-            data = np.mean(np.abs(np.load(path + 'TNPA_' + label + '.npy')[:,:,0] - MC), axis=1)
+        for label in ARM_labels:
+            data = np.mean(np.abs(np.load(path + 'ARM_' + label + '.npy')[:,:,0] - MC), axis=1)
             y_min = min(y_min,np.max(data[:t_max+1]))
             plt.plot(range(t_max+1), data[:t_max+1], color = colors[int(label[-1])-1], label = label)
     
@@ -70,7 +70,7 @@ def plot_error_temporal(path,methods,t_max, TNPA_labels = [],figsize = (8,5)):
     plt.xlim(0,t_max)
     plt.legend()
 
-def plot_density(path, methods, t, TNPA_labels = [], bins=10 , figsize = (8,5)):
+def plot_density(path, methods, t, ARM_labels = [], bins=10 , figsize = (8,5)):
     m_min = 0.
     m_max = 1.
     bins = np.linspace(m_min,m_max,bins+1)
@@ -89,10 +89,10 @@ def plot_density(path, methods, t, TNPA_labels = [], bins=10 , figsize = (8,5)):
         DMP = norm.pdf(bins, np.mean(DMP), np.std(DMP))
         plt.plot(bins,  DMP, label = 'DMP',linestyle='--',dashes = (8,8))
 
-    if 'TNPA' in methods:
+    if 'ARM' in methods:
         colors = plt.cm.tab10.colors
-        for label in TNPA_labels:
-            data = 1.-np.load(path + 'TNPA_' + label + '.npy')[t,:,0]
+        for label in ARM_labels:
+            data = 1.-np.load(path + 'ARM_' + label + '.npy')[t,:,0]
             data = norm.pdf(bins, np.mean(data), np.std(data))
             plt.plot(bins, data ,color=colors[int(label[-1])-1], label = label)
 
@@ -103,26 +103,26 @@ def plot_density(path, methods, t, TNPA_labels = [], bins=10 , figsize = (8,5)):
 
     plt.legend()
 
-def scatter_error(path, t, n_point=0, label_TNPA='', figsize=(8, 5)):
+def scatter_error(path, t, n_point=0, label_ARM='', figsize=(8, 5)):
     plt.figure(1, figsize=figsize)
     
     MC = 1 - np.load(path + 'MC' + '.npy')[t, :, 0][1:] # removing the zero patient
-    TNPA = 1 - np.load(path + 'TNPA_' + label_TNPA + '.npy')[t, :, 0][1:] 
+    ARM = 1 - np.load(path + 'ARM_' + label_ARM + '.npy')[t, :, 0][1:] 
     PA = 1 - np.load(path + 'PA' + '.npy')[t, :, 0][1:] 
     
     if n_point != 0 & n_point<len(MC):
         random = np.random.choice(len(MC), n_point, replace=False)
         MC = MC[random]
         PA = PA[random]
-        TNPA = TNPA[random]
+        ARM = ARM[random]
 
     v_min = np.min(MC)
-    v_max = max(np.max(MC), np.max(PA), np.max(TNPA))
+    v_max = max(np.max(MC), np.max(PA), np.max(ARM))
 
     colors = plt.cm.tab10.colors
 
     plt.scatter(PA, MC, label='PA', marker='o', edgecolors=colors[0], c='None', zorder=10,s=25)
-    plt.scatter(TNPA, MC, label=label_TNPA, marker='+', color=colors[int(label_TNPA[-1])-1], zorder=9,s=15)
+    plt.scatter(ARM, MC, label=label_ARM, marker='+', color=colors[int(label_ARM[-1])-1], zorder=9,s=15)
     plt.plot([v_min, v_max], [v_min, v_max], color='green', linestyle='--')
 
     plt.xlim(v_min, v_max)
@@ -131,7 +131,7 @@ def scatter_error(path, t, n_point=0, label_TNPA='', figsize=(8, 5)):
     plt.ylabel('MC')
     plt.legend()
 
-def print_late_time_CI(path,g_name,methods,label_TNPA,t=-1,precision=5):
+def print_late_time_CI(path,g_name,methods,label_ARM,t=-1,precision=5):
     print(f'Network:{g_name}')
     if 'MC' in methods:
         MC = 1 - np.load(path + 'MC.npy')[t, :, 0]
@@ -142,6 +142,6 @@ def print_late_time_CI(path,g_name,methods,label_TNPA,t=-1,precision=5):
     if 'PA' in methods:
         PA = 1 - np.load(path + 'PA.npy')[t, :, 0]
         print('PA:', np.round(np.average(PA), precision),end = ', ')
-    if 'TNPA' in methods:
-        TNPA = 1 - np.load(path + 'TNPA_' + label_TNPA + '.npy')[t, :, 0]
-        print('TNPA' + ':', np.round(np.average(TNPA), precision))
+    if 'ARM' in methods:
+        ARM = 1 - np.load(path + 'ARM_' + label_ARM + '.npy')[t, :, 0]
+        print('ARM' + ':', np.round(np.average(ARM), precision))

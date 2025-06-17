@@ -116,8 +116,8 @@ group = parser.add_argument_group('simulation method')
 group.add_argument(
     '--method',
     nargs='+',
-    choices=['RA', 'MC', 'PA', 'DMP'],
-    help='One or more methods, among RA, MC, PA, DMP'
+    choices=['ARM', 'MC', 'PA', 'DMP'],
+    help='One or more methods, among ARM, MC, PA, DMP'
 )
 group.add_argument(
     '-L',

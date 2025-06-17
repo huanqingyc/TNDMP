@@ -162,11 +162,11 @@ class PA(Epidemic):
 
         return marginal
 
-class TNPA(PA):
+class ARM(PA):
     def __init__(self, g, epar, tau, init_i, partition, label):
         super().__init__(g, epar, tau, init_i)
 
-        self.algorithm = 'TNPA'
+        self.algorithm = 'ARM'
         self.algorithm_label += label
 
         self.Regions = []
@@ -202,11 +202,11 @@ class TNPA(PA):
         self.t = t
         for _ in range(t):
             for __ in range(self.spt):
-                self.TNPA_step()
+                self.ARM_step()
             self.marginal_all.append(self.marginal.copy())
         self.marginal_all = np.array(self.marginal_all)
 
-    def TNPA_step(self):
+    def ARM_step(self):
         # First update TN with previous step info, but do not update marginals in TN
         for i in range(self.num_tn):
             nodes = list(self.Regions[i])
