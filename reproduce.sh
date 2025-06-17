@@ -1,7 +1,7 @@
 #!/bin/sh
 
 epidemic='-l 0.1 -r 0.05 --patient_zeros 0 --tau 0.1'
-p_MC='-n_mp 4 --MC_repeats 10 --n_threads 4'
+p_MC='-n_mp 4 --MC_repeats 1000000 --n_threads 4'
 methods='--method MC DMP PA ARM'
 
 # Fig.5(b-d)
