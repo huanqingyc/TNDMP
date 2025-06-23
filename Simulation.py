@@ -4,26 +4,36 @@ import networkx as nx
 import numpy as np
 
 def ensure_dir(filename):
+    """
+    Ensure that the directory for the given filename exists.
+    """
     dirname = os.path.dirname(filename)
-    if dirname:
-        try:
-            os.makedirs(dirname)
-        except OSError:
-            pass
+    if dirname and not os.path.exists(dirname):
+        os.makedirs(dirname, exist_ok=True)
 
 def set_environment_variables(threads=4):
+    """
+    Set environment variables for controlling the number of threads in numpy/scipy.
+    """
     threads = str(threads)
     os.environ["MKL_NUM_THREADS"] = threads
     os.environ["NUMEXPR_NUM_THREADS"] = threads
     os.environ["OMP_NUM_THREADS"] = threads
 
 class Epidemic:
-    def __init__(self, g, epar, tau, init_s, etype='SIR'):
+    def __init__(self, g, epar, tau, init_s):
+        """
+        Base class for epidemic simulation.
+        g: networkx graph
+        epar: epidemic parameters (infection, recovery)
+        tau: time step
+        init_s: initial susceptible probability array
+        """
         self.G = nx.Graph(g)
         self.nodes = list(self.G)
         self.tau = tau
         self.spt = int(1 / tau)  # steps per unit time
-        self.d = 3  # len(set(etype)) for recurrent model
+        self.d = 3
         self.n = len(g)
         self.marginal_all = []
         self.marginal = np.zeros((self.n, self.d))
@@ -32,7 +42,6 @@ class Epidemic:
         self.algorithm_label = ''
 
         self.epar = np.array(epar) * tau
-        self.etype = etype
         self.l = self.epar[0]
         self.r = self.epar[1]
 
@@ -45,10 +54,16 @@ class Epidemic:
 
 class MC_mp(Epidemic):
     def __init__(self, g, epar, tau, init_s):
+        """
+        Monte Carlo simulation with multiprocessing.
+        """
         super().__init__(g, epar, tau, init_s)
         self.algorithm = 'MC'
 
     def evolution(self, t, repeats, mp_num=10):
+        """
+        Run the MC simulation to time t, using multiprocessing.
+        """
         self.t = t
         self.marginal_all = np.zeros([t + 1, self.n, self.d])
 
@@ -69,6 +84,9 @@ class MC_mp(Epidemic):
 
 class DMP(Epidemic):
     def __init__(self, g, epar, tau, init_i):
+        """
+        Dynamic Message Passing (DMP) simulation.
+        """
         super().__init__(g, epar, tau, init_i)
         self.marginal_all.append(self.marginal.copy())
         self.edges = list(self.G.edges())
@@ -78,6 +96,9 @@ class DMP(Epidemic):
         self.z = self.marginal[:, 0].copy()
 
     def evolution(self, t):
+        """
+        Run the DMP simulation to time t.
+        """
         self.t = t
         self.pt = 0
         for _ in range(t):
@@ -88,9 +109,13 @@ class DMP(Epidemic):
         self.marginal_all = np.array(self.marginal_all)
 
     def step(self):
+        """
+        Perform one DMP step.
+        """
         new_H = self.H.copy()
 
         for [a, b] in self.edges:
+            # Update messages
             new_H[a, b] += -(self.r + self.l) * self.H[a, b] + self.r + self.l * self.z[a] * np.prod(self.H[:, a]) / self.H[b, a]
             new_H[b, a] += -(self.r + self.l) * self.H[b, a] + self.r + self.l * self.z[b] * np.prod(self.H[:, b]) / self.H[a, b]
         self.H = new_H
@@ -101,6 +126,9 @@ class DMP(Epidemic):
 
 class PA(Epidemic):
     def __init__(self, g, epar, tau, init_i):
+        """
+        Pair Approximation (PA) simulation.
+        """
         super().__init__(g, epar, tau, init_i)
         self.marginal_all.append(self.marginal.copy())
         self.edges = list(self.G.edges())
@@ -115,6 +143,9 @@ class PA(Epidemic):
             self.SS[j, i] = self.marginal[i, 0] * self.marginal[j, 0]
 
     def evolution(self, t):
+        """
+        Run the PA simulation to time t.
+        """
         self.t = t
         for _ in range(t):
             for __ in range(self.spt):
@@ -123,21 +154,23 @@ class PA(Epidemic):
         self.marginal_all = np.array(self.marginal_all)
 
     def step(self):
+        """
+        Perform one PA step.
+        """
         new_IS, new_SS = self.update_pair()
         self.marginal = self.update_marginal()
         self.IS = new_IS
         self.SS = new_SS
 
     def update_pair(self):
+        """
+        Update pairwise probabilities for all edges.
+        """
         new_IS = self.IS.copy()
         new_SS = self.SS.copy()
         for [a, b] in self.edges:
-
-            [sa, sb] = [0, 0]
-            if self.marginal[a, 0] != 0:
-                sa = (np.sum(self.IS[:, a]) - self.IS[b, a]) / self.marginal[a, 0]
-            if self.marginal[b, 0] != 0:
-                sb = (np.sum(self.IS[:, b]) - self.IS[a, b]) / self.marginal[b, 0]
+            sa = (np.sum(self.IS[:, a]) - self.IS[b, a]) / self.marginal[a, 0] if self.marginal[a, 0] != 0 else 0
+            sb = (np.sum(self.IS[:, b]) - self.IS[a, b]) / self.marginal[b, 0] if self.marginal[b, 0] != 0 else 0
 
             da = self.l * self.SS[a, b] * sa
             db = self.l * self.SS[a, b] * sb
@@ -149,6 +182,9 @@ class PA(Epidemic):
         return [new_IS, new_SS]
 
     def update_marginal(self):
+        """
+        Update marginal probabilities for all nodes.
+        """
         IS_sum = np.sum(self.IS, axis=0)
         deltai = np.minimum(self.l * IS_sum, self.marginal[:, 0])
         deltai = np.maximum(deltai, 0)
@@ -164,6 +200,9 @@ class PA(Epidemic):
 
 class ARM(PA):
     def __init__(self, g, epar, tau, init_i, partition, label):
+        """
+        Approximate Region Moment (ARM) simulation.
+        """
         super().__init__(g, epar, tau, init_i)
 
         self.algorithm = 'ARM'
@@ -185,11 +224,14 @@ class ARM(PA):
                 neighs.append(neigh)
             self.neighs_of_region.append(neighs)
 
-        [self.edges, self.edges_TN] = self.get_PA_part()  # Remove other edges inside TN
+        [self.edges, self.edges_TN] = self.edges_classification()  # Remove other edges inside TN
 
         self.num_tn = len(partition)
 
-    def get_PA_part(self):
+    def edges_classification(self):
+        """
+        Get edges for PA and TN (region) parts.
+        """
         leftg = nx.Graph(self.G)
         edges_TN = []
         for Region_graph in self.Regions:
@@ -199,6 +241,9 @@ class ARM(PA):
         return [edges_PA, edges_TN]
 
     def evolution(self, t):
+        """
+        Run the ARM simulation to time t.
+        """
         self.t = t
         for _ in range(t):
             for __ in range(self.spt):
@@ -207,6 +252,9 @@ class ARM(PA):
         self.marginal_all = np.array(self.marginal_all)
 
     def ARM_step(self):
+        """
+        Perform one ARM step, updating both TN and PA parts.
+        """
         # First update TN with previous step info, but do not update marginals in TN
         for i in range(self.num_tn):
             nodes = list(self.Regions[i])
@@ -236,6 +284,9 @@ class ARM(PA):
 
 class Region:
     def __init__(self, G, epar, init_state, d):
+        """
+        Region class for ARM, representing a subgraph.
+        """
         self.G = G
         self.nodes = list(self.G)
         self.n = len(self.nodes)
@@ -251,6 +302,9 @@ class Region:
         self.get_operators()
 
     def get_operators(self):
+        """
+        Precompute operators for infection and recovery.
+        """
         infc = np.eye(self.d ** 2).reshape(self.d, self.d, self.d, self.d)
         infc[1, 1, 0, 1] += self.l
         infc[0, 1, 0, 1] -= self.l
@@ -269,6 +323,9 @@ class Region:
         self.local = local
 
     def update(self, msgin):
+        """
+        Update the region's tensor T using incoming messages.
+        """
         t = self.T
         for edge in list(self.G.edges()):
             [a, b] = edge
@@ -293,10 +350,16 @@ class Region:
         self.T = t
 
     def marginal(self, i):
+        """
+        Compute the marginal probability for node i in the region.
+        """
         marginal = np.sum(self.T, axis=tuple([dim for dim in range(self.n) if (dim != i)]))
         return marginal
 
     def pair_marginal(self, n1, n2):
+        """
+        Compute the joint marginal for nodes n1 and n2 in the region.
+        """
         i = self.nodes.index(n1)
         j = self.nodes.index(n2)
         pp = np.sum(self.T, axis=tuple([dim for dim in range(self.n) if (dim != i and dim != j)]))
@@ -305,6 +368,9 @@ class Region:
         return pp
 
 def MC(para):
+    """
+    Monte Carlo simulation for SIR model.
+    """
     [repeats, epar, n, d, t_max, seed, spt, init_state, adjacency_matrix] = para
     marginal_sum = np.zeros([t_max + 1, n, d])
     np.random.seed(seed)
