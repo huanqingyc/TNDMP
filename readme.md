@@ -1,3 +1,10 @@
-# Tensor Network Framework for non-recurrent epidemic models
+# TNDMP
 
-Script `reproduce.sh` are commands to reproduce the data for Fig.5-8 and Tab.1. `Draw.ipynb` contains codes to draw Fig.4-8 and print simulation results in Tab.1
+Script `reproduce.sh` are commands to reproduce all data for figures in the paper.
+
+## Environment Creation
+One can use conda to install the package with the following commands:
+```bash
+conda env create -f environment.yml
+```
+this will create an environment named `tndmp` with all the dependencies except for the pytorch, then activate the environment with `conda activate tndmp`.

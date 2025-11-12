@@ -31,11 +31,6 @@ group = parser.add_argument_group('graph parameters')
 group.add_argument(
     '-g', '--graph',
     type=str,
-    choices=[
-        'random regular graph', 'contiguous usa', 'Karate club',
-        'Loop star', 'Random tree', 'Regular tree', 'dolphins',
-        'science', 'euroroad', '494bus', 'auth'
-    ],
     required=True,
     help='Graph type'
 )
@@ -116,8 +111,8 @@ group = parser.add_argument_group('simulation method')
 group.add_argument(
     '--method',
     nargs='+',
-    choices=['ARM', 'MC', 'PA', 'DMP'],
-    help='One or more methods, among ARM, MC, PA, DMP'
+    choices=['TNDMP', 'MC', 'PA', 'DMP'],
+    help='One or more methods, among TNDMP, MC, PA, DMP'
 )
 group.add_argument(
     '-L',

@@ -1,6 +1,7 @@
 import networkx as nx
 import numpy as np
 import time
+import os
 
 def print_region(regions, print_edges):
     """
@@ -37,6 +38,13 @@ def get_biconnected_subgraph(G):
         list: List of nx.Graph subgraphs.
     """
     return [nx.Graph(G.subgraph(comps)) for comps in nx.biconnected_components(G) if len(comps) > 2]
+
+def get_max_region_size(g_name):
+    """
+    Get the maximum size of regions in the graph.
+    """
+    g, _ = graph(g_name)
+    return max(len(region) for region in get_partition(g, [0], [0])[(0, 0)])
 
 def get_l(G, e):
     """
@@ -169,27 +177,7 @@ def graph(g_name, g_parameter=None, add_clique=False):
     Returns:
         tuple: (graph, graph_name)
     '''
-    if g_name == 'contiguous usa':
-        g_name = 'contiguous_usa'
-        g = nx.read_edgelist('./networks/contiguous_usa.txt', nodetype=int)
-        n = len(g)
-    elif g_name == 'dolphins':
-        g = nx.read_edgelist('./networks/dolphins.txt', nodetype=int)
-        n = len(g)
-    elif g_name == 'science':
-        g = nx.read_edgelist('./networks/network_science.txt', nodetype=int)
-        n = len(g)
-    elif g_name == 'euroroad':
-        g = nx.read_edgelist('./networks/euroroad.txt', nodetype=int)
-        n = len(g)
-    elif g_name == '494bus':
-        g = nx.read_edgelist('./networks/494bus.txt', nodetype=int)
-        n = len(g)
-    elif g_name == 'auth':
-        g = nx.read_edgelist('./networks/sandi_auths.txt', nodetype=int)
-        n = len(g)
-    elif g_name == 'Karate club':
-        g_name = 'karate_club'
+    if g_name == 'karate_club':
         g = nx.karate_club_graph()
         n = len(list(g))
     elif g_name == 'Loop star':
@@ -206,6 +194,24 @@ def graph(g_name, g_parameter=None, add_clique=False):
         g_name = 'random_tree'
         [n, _, seed] = g_parameter
         g = nx.random_tree(n, seed=seed)
+    else:
+        # 检查networks文件夹中是否存在对应的网络文件
+        network_file_path = './networks/' + g_name + '.txt'
+        if not os.path.exists(network_file_path):
+            print(f"错误：在networks文件夹中找不到网络文件 '{g_name}.txt'")
+            print(f"文件路径：{os.path.abspath(network_file_path)}")
+            print("可用的网络文件：")
+            networks_dir = './networks/'
+            if os.path.exists(networks_dir):
+                available_files = [f for f in os.listdir(networks_dir) if f.endswith('.txt')]
+                for file in available_files:
+                    print(f"  - {file}")
+            else:
+                print("  networks文件夹不存在")
+            raise FileNotFoundError(f"网络文件 '{g_name}.txt' 不存在")
+        
+        g = nx.read_edgelist(network_file_path, nodetype=int)
+        
     if add_clique:
         g = add_cliques(g, seed)
         g_name = 'cliques_added_' + g_name

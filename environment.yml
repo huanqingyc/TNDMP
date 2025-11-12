@@ -1,0 +1,13 @@
+name: epidemic
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - numpy
+  - matplotlib
+  - jupyter
+  - scipy
+  - pandas
+  - pip
+  - pip:
+    - networkx==2.8.8

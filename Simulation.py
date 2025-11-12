@@ -198,14 +198,14 @@ class PA(Epidemic):
 
         return marginal
 
-class ARM(PA):
+class TNDMP(PA):
     def __init__(self, g, epar, tau, init_i, partition, label):
         """
-        Approximate Region Moment (ARM) simulation.
+        Tensor network dynamical message passing (TNDMP) simulation.
         """
         super().__init__(g, epar, tau, init_i)
 
-        self.algorithm = 'ARM'
+        self.algorithm = 'TNDMP'
         self.algorithm_label += label
 
         self.Regions = []
@@ -242,18 +242,18 @@ class ARM(PA):
 
     def evolution(self, t):
         """
-        Run the ARM simulation to time t.
+        Run the TNDMP simulation to time t.
         """
         self.t = t
         for _ in range(t):
             for __ in range(self.spt):
-                self.ARM_step()
+                self.TNDMP_step()
             self.marginal_all.append(self.marginal.copy())
         self.marginal_all = np.array(self.marginal_all)
 
-    def ARM_step(self):
+    def TNDMP_step(self):
         """
-        Perform one ARM step, updating both TN and PA parts.
+        Perform one TNDMP step, updating both TN and PA parts.
         """
         # First update TN with previous step info, but do not update marginals in TN
         for i in range(self.num_tn):
@@ -285,7 +285,7 @@ class ARM(PA):
 class Region:
     def __init__(self, G, epar, init_state, d):
         """
-        Region class for ARM, representing a subgraph.
+        Region class for TNDMP, representing a subgraph.
         """
         self.G = G
         self.nodes = list(self.G)

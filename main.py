@@ -10,8 +10,7 @@ if __name__ == '__main__':
     )
 
     if args.show_partition:
-        region_dict = get_partition(G, args.L, args.N)
-        print_region_diction(region_dict, args.print_edges)
+        print_region_diction(G, args.L, args.N, args.print_edges)
 
     if args.simulation:
         set_environment_variables(args.n_threads)
@@ -44,7 +43,7 @@ if __name__ == '__main__':
             s = PA(G, epar, args.tau, init_s)
             s.evolution(args.t_max)
             s.save_data(args.precision,path + 'PA.npy')
-        if 'ARM' in args.method:
+        if 'TNDMP' in args.method:
             if not args.show_partition:
                 region_dict = get_partition(G, args.L, args.N)
             for ln, partition in region_dict.items():
@@ -56,6 +55,6 @@ if __name__ == '__main__':
                     label += 'N' + str(n)
                 if l+n == 0:
                     label += '_exact'
-                s = ARM(G, epar, args.tau, init_s, partition, label)
+                s = TNDMP(G, epar, args.tau, init_s, partition, label)
                 s.evolution(args.t_max)
-                s.save_data(args.precision,path + 'ARM' + label + '.npy')
+                s.save_data(args.precision,path + 'TNDMP' + label + '.npy')
