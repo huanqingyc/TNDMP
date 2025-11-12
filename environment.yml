@@ -1,4 +1,4 @@
-name: epidemic
+name: tndmp
 channels:
   - conda-forge
 dependencies:
