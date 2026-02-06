@@ -1,3 +1,4 @@
+import time
 from Graph import *
 from Simulation import *
 from args import args
@@ -30,22 +31,33 @@ if __name__ == '__main__':
         if args.save:
             ensure_dir(f'{args.save_path}/{g_name}/')
             path = os.path.join(f'{args.save_path}/{g_name}/({args.lamda},{args.rho}),({args.t_max},{args.tau})_')
+            log_dir = os.path.dirname(path)
+        else:
+            log_dir = None
 
         if 'MC' in args.method:
             s_mc = MC_mp(G, epar, args.tau, init_s)
-            s_mc.evolution(args.t_max, repeats=args.MC_repeats, mp_num=args.n_multiprocess)
-            s_mc.save_data(args.precision,path + 'MC.npy')
+            s_mc.evolution(args.t_max, repeats=args.MC_repeats, mp_num=args.n_multiprocess, log_dir=log_dir)
+            if args.save:
+                s_mc.save_data(args.precision, path + 'MC.npy')
         if 'DMP' in args.method:
             s = DMP(G, epar, args.tau, init_s)
-            s.evolution(args.t_max)
-            s.save_data(args.precision,path + 'DMP.npy')
+            s.evolution(args.t_max, log_dir=log_dir)
+            if args.save:
+                s.save_data(args.precision, path + 'DMP.npy')
         if 'PA' in args.method:
             s = PA(G, epar, args.tau, init_s)
-            s.evolution(args.t_max)
-            s.save_data(args.precision,path + 'PA.npy')
+            s.evolution(args.t_max, log_dir=log_dir)
+            if args.save:
+                s.save_data(args.precision, path + 'PA.npy')
         if 'TNDMP' in args.method:
             if not args.show_partition:
+                t0_partition = time.process_time()
                 region_dict = get_partition(G, args.L, args.N)
+                partition_time = time.process_time() - t0_partition
+            else:
+                region_dict = get_partition(G, args.L, args.N)
+                partition_time = None
             for ln, partition in region_dict.items():
                 l,n = ln
                 label ='_'
@@ -56,5 +68,6 @@ if __name__ == '__main__':
                 if l+n == 0:
                     label += '_exact'
                 s = TNDMP(G, epar, args.tau, init_s, partition, label)
-                s.evolution(args.t_max)
-                s.save_data(args.precision,path + 'TNDMP' + label + '.npy')
+                s.evolution(args.t_max, log_dir=log_dir, partition_time=partition_time)
+                if args.save:
+                    s.save_data(args.precision, path + 'TNDMP' + label + '.npy')

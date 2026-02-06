@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import os
+import time
 import networkx as nx
 import numpy as np
 
@@ -10,6 +11,27 @@ def ensure_dir(filename):
     dirname = os.path.dirname(filename)
     if dirname and not os.path.exists(dirname):
         os.makedirs(dirname, exist_ok=True)
+
+def append_running_time_log(folder_path, method_name, cpu_seconds):
+    """
+    Append each method's CPU time to running_time_log.txt in the given folder.
+    Creates the file if it does not exist; appends with a blank line between entries if it does.
+    """
+    ensure_dir(os.path.join(folder_path, 'running_time_log.txt'))
+    log_file = os.path.join(folder_path, 'running_time_log.txt')
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(f"{method_name}: {cpu_seconds:.2f} (CPU s)\n\n")
+
+
+def append_tndmp_running_time_log(folder_path, method_name, partition_cpu_seconds, simulation_cpu_seconds):
+    """
+    Append TNDMP partition and simulation CPU times to running_time_log.txt.
+    Format: partition:xxx, simulation:xxx (CPU s)
+    """
+    ensure_dir(os.path.join(folder_path, 'running_time_log.txt'))
+    log_file = os.path.join(folder_path, 'running_time_log.txt')
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(f"{method_name}: partition:{partition_cpu_seconds:.2f}, simulation:{simulation_cpu_seconds:.2f} (CPU s)\n\n")
 
 def set_environment_variables(threads=4):
     """
@@ -60,9 +82,11 @@ class MC_mp(Epidemic):
         super().__init__(g, epar, tau, init_s)
         self.algorithm = 'MC'
 
-    def evolution(self, t, repeats, mp_num=10):
+    def evolution(self, t, repeats, mp_num=10, log_dir=None):
         """
         Run the MC simulation to time t, using multiprocessing.
+        If log_dir is provided, records CPU time and appends to running_time_log.txt in that directory.
+        For multiprocessing, total CPU time is the sum over all processes (main + worker).
         """
         self.t = t
         self.marginal_all = np.zeros([t + 1, self.n, self.d])
@@ -72,15 +96,30 @@ class MC_mp(Epidemic):
 
         single_repeat = repeats // mp_num
 
+        # Run in parallel; each worker returns (marginal_sum, cpu_time)
         with mp.Pool(mp_num) as pool:
             arg_list = [
                 [single_repeat, self.epar, self.n, self.d, t, seed, self.spt, self.marginal, adjacency_matrix]
                 for seed in range(mp_num)
             ]
             results = pool.map(MC, arg_list)
+        
+        # Aggregate results and CPU time
+        t0_main = time.process_time()
+        total_cpu_time = 0.0
         for result in results:
-            self.marginal_all += result
+            marginal_sum, cpu_time = result
+            self.marginal_all += marginal_sum
+            total_cpu_time += cpu_time
+        
         self.marginal_all /= repeats
+        
+        # Add main process CPU time for aggregation, etc.
+        t_main = time.process_time() - t0_main
+        total_cpu_time += t_main
+        
+        if log_dir is not None:
+            append_running_time_log(log_dir, self.algorithm, total_cpu_time)
 
 class DMP(Epidemic):
     def __init__(self, g, epar, tau, init_i):
@@ -95,10 +134,12 @@ class DMP(Epidemic):
         self.H = np.ones((self.n, self.n))
         self.z = self.marginal[:, 0].copy()
 
-    def evolution(self, t):
+    def evolution(self, t, log_dir=None):
         """
         Run the DMP simulation to time t.
+        If log_dir is provided, records CPU time and appends to running_time_log.txt in that directory.
         """
+        t0 = time.process_time()
         self.t = t
         self.pt = 0
         for _ in range(t):
@@ -107,6 +148,8 @@ class DMP(Epidemic):
                 self.pt += self.tau
             self.marginal_all.append(self.marginal.copy())
         self.marginal_all = np.array(self.marginal_all)
+        if log_dir is not None:
+            append_running_time_log(log_dir, self.algorithm, time.process_time() - t0)
 
     def step(self):
         """
@@ -142,16 +185,20 @@ class PA(Epidemic):
             self.SS[i, j] = self.marginal[i, 0] * self.marginal[j, 0]
             self.SS[j, i] = self.marginal[i, 0] * self.marginal[j, 0]
 
-    def evolution(self, t):
+    def evolution(self, t, log_dir=None):
         """
         Run the PA simulation to time t.
+        If log_dir is provided, records CPU time and appends to running_time_log.txt in that directory.
         """
+        t0 = time.process_time()
         self.t = t
         for _ in range(t):
             for __ in range(self.spt):
                 self.step()
             self.marginal_all.append(self.marginal.copy())
         self.marginal_all = np.array(self.marginal_all)
+        if log_dir is not None:
+            append_running_time_log(log_dir, self.algorithm, time.process_time() - t0)
 
     def step(self):
         """
@@ -210,7 +257,7 @@ class TNDMP(PA):
 
         self.Regions = []
         self.TN = []
-        self.neighs_of_region = []  # Index by order of [region, node, neighbor]
+        self.neighs_of_region = []  # Indexed by [region, node, neighbor] order
         for region in partition:
             self.Regions.append(region)
             self.TN.append(Region(region, self.epar, self.marginal[list(region)], self.d))
@@ -224,7 +271,7 @@ class TNDMP(PA):
                 neighs.append(neigh)
             self.neighs_of_region.append(neighs)
 
-        [self.edges, self.edges_TN] = self.edges_classification()  # Remove other edges inside TN
+        [self.edges, self.edges_TN] = self.edges_classification()  # Edges outside TN vs inside each region
 
         self.num_tn = len(partition)
 
@@ -240,16 +287,26 @@ class TNDMP(PA):
         edges_PA = list(leftg.edges())
         return [edges_PA, edges_TN]
 
-    def evolution(self, t):
+    def evolution(self, t, log_dir=None, partition_time=None):
         """
         Run the TNDMP simulation to time t.
+        If log_dir is provided, records CPU time and appends to running_time_log.txt in that directory.
+        If partition_time is also provided, logs partition and simulation time as partition:xxx, simulation:xxx (CPU s).
         """
+        t0 = time.process_time()
         self.t = t
         for _ in range(t):
             for __ in range(self.spt):
                 self.TNDMP_step()
             self.marginal_all.append(self.marginal.copy())
         self.marginal_all = np.array(self.marginal_all)
+        sim_time = time.process_time() - t0
+        if log_dir is not None:
+            method_name = self.algorithm + (self.algorithm_label or '')
+            if partition_time is not None:
+                append_tndmp_running_time_log(log_dir, method_name, partition_time, sim_time)
+            else:
+                append_running_time_log(log_dir, method_name, sim_time)
 
     def TNDMP_step(self):
         """
@@ -370,7 +427,9 @@ class Region:
 def MC(para):
     """
     Monte Carlo simulation for SIR model.
+    Returns (marginal_sum, cpu_time) where cpu_time is this worker's CPU time.
     """
+    t0 = time.process_time()
     [repeats, epar, n, d, t_max, seed, spt, init_state, adjacency_matrix] = para
     marginal_sum = np.zeros([t_max + 1, n, d])
     np.random.seed(seed)
@@ -390,4 +449,5 @@ def MC(para):
                 marginal[infected] = [0, 1, 0]
                 marginal[recovered] = [0, 0, 1]
             marginal_sum[t] += marginal
-    return marginal_sum
+    cpu_time = time.process_time() - t0
+    return (marginal_sum, cpu_time)
